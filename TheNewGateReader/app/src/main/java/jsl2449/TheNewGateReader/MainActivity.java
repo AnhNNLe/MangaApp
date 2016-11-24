@@ -15,14 +15,12 @@ import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import org.w3c.dom.Text;
-
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
 
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends AppCompatActivity implements URLFetch.Callback {
 
     static public String AppName = "TheNewGateReader";
     private Button btnResume;
@@ -91,9 +89,15 @@ public class MainActivity extends AppCompatActivity {
 
     }
 
-    private void setSummary(){
+    private void setSummary() {
         tvSummary = (TextView) findViewById(R.id.tvSummary);
         tvSummary.setText("kljkljkfdjdj");
+        String theURL = "http://www.mangahere.co/manga/the_new_gate/";
+        try {
+            new URLFetch(this, new URL(theURL));
+        } catch (MalformedURLException e) {
+            Toast.makeText(this, "Unable to get webpage asdfasdfasdf", Toast.LENGTH_SHORT).show();
+        }
     }
 
     @Override
@@ -104,7 +108,7 @@ public class MainActivity extends AppCompatActivity {
                 currentPage = new URL(extras.getString("currentPage"));
                 currentChapter = new URL(extras.getString("currentChapter"));
                 chapterList = extras.getStringArrayList("chapterList");
-                System.out.println(currentPage.toString() + " "+ currentChapter.toString() + " " + chapterList);
+                System.out.println(currentPage.toString() + " " + currentChapter.toString() + " " + chapterList);
             } catch (MalformedURLException e) {
             }
             System.out.println("onActivityResult main " + currentPage.toString());
@@ -137,4 +141,33 @@ public class MainActivity extends AppCompatActivity {
     }
 
 
+    @Override
+    public void fetchStart() {
+        System.out.println("fetchStart MainActivity");
+
+    }
+
+    @Override
+    public void fetchComplete(String result) {
+        System.out.println("fetchComplete MainActivity");
+        System.out.println(result);
+        int firstPos = result.indexOf("<p id=\"show\"");
+        System.out.println("XCVBVCXCVBVCXCVBVCXVBV " + firstPos);
+        String description=result.substring(firstPos);
+        System.out.println(description);
+
+        firstPos=description.indexOf("an online game");
+        description=description.substring(firstPos);
+
+        int lastPos = description.indexOf("&nbsp;<a");
+        System.out.println("XCVBVCXCVBVCXCVBVCXVBV " + lastPos);
+        description=description.substring(0,lastPos);
+        System.out.println(description);
+
+        String firstLetter=description.substring(0, 1).toUpperCase();
+
+        description=firstLetter + description.substring(1);
+
+        tvSummary.setText(description);
+    }
 }
