@@ -10,12 +10,9 @@
     android:paddingTop="@dimen/activity_vertical_margin"
     tools:context="jsl2449.TheNewGateReader.ChapterListActivity">
 
-
-
     <ListView
         android:id="@+id/chapter_list"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:layout_below="@+id/tvSummary"></ListView>
+        android:layout_height="match_parent"></ListView>
 
 </RelativeLayout>

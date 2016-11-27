@@ -27,13 +27,9 @@ public class MainActivity extends AppCompatActivity {
     static public String AppName = "TheNewGateReader";
     private Button btnResume;
     private Button btnChapterList;
-    private TextView tvSummary;
-    private URL prevChapter;
-    private URL nextChapter;
+    private Button btnBookmarks;
     private URL currentChapter;
     private URL currentPage;
-    private URL prevPage;
-    private URL nextPage;
     private List<String> chapterList;
 
     @Override
@@ -86,14 +82,14 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        // Get summary here
-        setSummary();
+        btnBookmarks = (Button) findViewById(R.id.btnBookmarks);
+        btnBookmarks.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                Toast.makeText(getApplicationContext(), "Bookmarks", Toast.LENGTH_SHORT).show();
+            }
+        });
 
-    }
-
-    private void setSummary(){
-        tvSummary = (TextView) findViewById(R.id.tvSummary);
-        tvSummary.setText("kljkljkfdjdj");
     }
 
     @Override
@@ -104,7 +100,7 @@ public class MainActivity extends AppCompatActivity {
                 currentPage = new URL(extras.getString("currentPage"));
                 currentChapter = new URL(extras.getString("currentChapter"));
                 chapterList = extras.getStringArrayList("chapterList");
-                System.out.println(currentPage.toString() + " "+ currentChapter.toString() + " " + chapterList);
+                System.out.println(currentPage.toString() + " " + currentChapter.toString() + " " + chapterList);
             } catch (MalformedURLException e) {
             }
             System.out.println("onActivityResult main " + currentPage.toString());
@@ -130,6 +126,9 @@ public class MainActivity extends AppCompatActivity {
         //noinspection SimplifiableIfStatement
         if (id == R.id.exit) {
             finish();
+            return true;
+        } else if (id == R.id.settings) {
+            Toast.makeText(getApplicationContext(), "settings hit", Toast.LENGTH_SHORT).show();
             return true;
         }
 

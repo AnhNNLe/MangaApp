@@ -18,12 +18,6 @@
         android:layout_height="match_parent"
         android:orientation="vertical">
 
-        <TextView
-            android:id="@+id/tvSummary"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="Summary Here" />
-
         <Button
             android:id="@+id/btnResume"
             android:layout_width="match_parent"
@@ -35,6 +29,12 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:text="Chapter List" />
+
+        <Button
+            android:id="@+id/btnBookmarks"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Bookmarks" />
     </LinearLayout>
 
 </RelativeLayout>
