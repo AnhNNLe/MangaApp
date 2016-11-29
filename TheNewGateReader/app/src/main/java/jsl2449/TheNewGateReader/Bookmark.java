@@ -17,6 +17,5 @@ public class Bookmark implements Serializable {
     public URL imageURL;
     public URL pageURL;
     public URL chapterURL;
-    public Bitmap preview;
 }
 

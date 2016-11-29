@@ -21,7 +21,11 @@
             </intent-filter>
         </activity>
         <activity android:name=".PageViewerActivity" />
-        <activity android:name=".ChapterListActivity"></activity>
+        <activity android:name=".ChapterListActivity" />
+        <activity
+            android:name=".BookmarksActivity"
+            android:label="@string/title_activity_bookmarks"
+            android:theme="@style/AppTheme.NoActionBar"></activity>
     </application>
 
 </manifest>

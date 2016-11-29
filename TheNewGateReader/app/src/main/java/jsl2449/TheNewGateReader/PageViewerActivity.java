@@ -69,6 +69,15 @@ public class PageViewerActivity extends AppCompatActivity implements URLFetch.Ca
 
     }
 
+    public void bookmark(){
+        Bookmark b = new Bookmark();
+        b.pageNumber = curPageIndex;
+        b.totalPages = pageList.size();
+        b.pageURL = currentPage;
+        b.chapterURL = currentChapter;
+        b.chapterNumber = curChapterIndex;
+    }
+
     public void fetch(URL url) {
         if (BitmapCache.getInstance().getBitmap(url.toString()) == null) {
             new URLFetch(this, url);

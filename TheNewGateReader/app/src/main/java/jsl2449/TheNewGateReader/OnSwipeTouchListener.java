@@ -80,6 +80,7 @@ public class OnSwipeTouchListener implements OnTouchListener {
     }
 
     public void onSwipeTop() {
+        ((PageViewerActivity) context).bookmark();
     }
 
     public void onSwipeBottom() {

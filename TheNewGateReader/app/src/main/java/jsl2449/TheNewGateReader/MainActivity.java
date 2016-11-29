@@ -2,6 +2,7 @@ package jsl2449.TheNewGateReader;
 
 import android.app.Activity;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.graphics.Bitmap;
 import android.graphics.Point;
 import android.os.Bundle;
@@ -28,9 +29,13 @@ public class MainActivity extends AppCompatActivity {
     private Button btnResume;
     private Button btnChapterList;
     private Button btnBookmarks;
+    private Button btnTest;
     private URL currentChapter;
     private URL currentPage;
     private List<String> chapterList;
+    private int savedValue;
+    private SharedPreferences sharedPref;
+    private Bookmark resume;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -39,6 +44,10 @@ public class MainActivity extends AppCompatActivity {
         Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
         toolbar.setTitle("The New Gate Reader");
         setSupportActionBar(toolbar);
+
+        sharedPref = getSharedPreferences("TheNewGateReader", 0);
+        savedValue = sharedPref.getInt("savedValue", 0);
+
 
         final int maxMemory = (int) (Runtime.getRuntime().maxMemory() / 1024);
 
@@ -87,6 +96,18 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onClick(View view) {
                 Toast.makeText(getApplicationContext(), "Bookmarks", Toast.LENGTH_SHORT).show();
+            }
+        });
+
+        btnTest = (Button) findViewById(R.id.btnTest);
+        btnTest.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                SharedPreferences.Editor editor = sharedPref.edit();
+                savedValue++;
+                editor.putInt("savedValue", savedValue);
+                editor.apply();
+                Toast.makeText(getApplicationContext(), "SavedValue = " + savedValue, Toast.LENGTH_SHORT).show();
             }
         });
 
