@@ -3,6 +3,7 @@ package jsl2449.TheNewGateReader;
 import android.app.Activity;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.database.sqlite.SQLiteDatabase;
 import android.graphics.Bitmap;
 import android.graphics.Point;
 import android.os.Bundle;
@@ -29,13 +30,8 @@ public class MainActivity extends AppCompatActivity {
     private Button btnResume;
     private Button btnChapterList;
     private Button btnBookmarks;
-    private Button btnTest;
-    private URL currentChapter;
-    private URL currentPage;
-    private List<String> chapterList;
-    private int savedValue;
-    private SharedPreferences sharedPref;
     private Bookmark resume;
+    DbHelper dbH;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -45,9 +41,8 @@ public class MainActivity extends AppCompatActivity {
         toolbar.setTitle("The New Gate Reader");
         setSupportActionBar(toolbar);
 
-        sharedPref = getSharedPreferences("TheNewGateReader", 0);
-        savedValue = sharedPref.getInt("savedValue", 0);
-
+        // set up bookmarks database
+        dbH = new DbHelper(getApplicationContext());
 
         final int maxMemory = (int) (Runtime.getRuntime().maxMemory() / 1024);
 
@@ -57,9 +52,6 @@ public class MainActivity extends AppCompatActivity {
         display.getSize(size);
         BitmapCache.maxW = size.x;
         BitmapCache.maxH = size.y;
-
-        currentPage = null;
-        currentChapter = null;
 
         btnChapterList = (Button) findViewById(R.id.btnChapterList);
         btnChapterList.setOnClickListener(new View.OnClickListener() {
@@ -75,17 +67,14 @@ public class MainActivity extends AppCompatActivity {
         btnResume.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                if (currentPage == null || currentChapter == null || chapterList == null) {
+                if (resume == null) {
                     Toast.makeText(view.getContext(), "No current place to resume", Toast.LENGTH_SHORT).show();
                 } else {
                     Intent viewPageIntent = new Intent(view.getContext(), PageViewerActivity.class);
                     Bundle myExtras = new Bundle();
-                    myExtras.putString("pageURL", currentPage.toString());
-                    myExtras.putString("currentChapter", currentChapter.toString());
-                    myExtras.putStringArrayList("chapterURLs", (ArrayList) chapterList);
-                    final int result = 1;
-                    System.out.println("main to page");
+                    myExtras.putSerializable("resume", resume);
                     viewPageIntent.putExtras(myExtras);
+                    final int result = 1;
                     startActivityForResult(viewPageIntent, result);
                 }
             }
@@ -95,19 +84,9 @@ public class MainActivity extends AppCompatActivity {
         btnBookmarks.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                Toast.makeText(getApplicationContext(), "Bookmarks", Toast.LENGTH_SHORT).show();
-            }
-        });
-
-        btnTest = (Button) findViewById(R.id.btnTest);
-        btnTest.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                SharedPreferences.Editor editor = sharedPref.edit();
-                savedValue++;
-                editor.putInt("savedValue", savedValue);
-                editor.apply();
-                Toast.makeText(getApplicationContext(), "SavedValue = " + savedValue, Toast.LENGTH_SHORT).show();
+                Intent viewBookmarksIntent = new Intent(view.getContext(), BookmarksActivity.class);
+                final int result = 1;
+                startActivityForResult(viewBookmarksIntent, result);
             }
         });
 
@@ -117,16 +96,8 @@ public class MainActivity extends AppCompatActivity {
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         Bundle extras = data.getExtras();
         if (extras != null) {
-            try {
-                currentPage = new URL(extras.getString("currentPage"));
-                currentChapter = new URL(extras.getString("currentChapter"));
-                chapterList = extras.getStringArrayList("chapterList");
-                System.out.println(currentPage.toString() + " " + currentChapter.toString() + " " + chapterList);
-            } catch (MalformedURLException e) {
-            }
-            System.out.println("onActivityResult main " + currentPage.toString());
+            resume = (Bookmark) extras.get("resume");
         }
-        System.out.println("back in main activity");
     }
 
 
@@ -149,7 +120,9 @@ public class MainActivity extends AppCompatActivity {
             finish();
             return true;
         } else if (id == R.id.settings) {
-            Toast.makeText(getApplicationContext(), "settings hit", Toast.LENGTH_SHORT).show();
+//            Toast.makeText(getApplicationContext(), "settings hit", Toast.LENGTH_SHORT).show();
+            Intent set = new Intent(this, Settings.class);
+            startActivity(set);
             return true;
         }
 

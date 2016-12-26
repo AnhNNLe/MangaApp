@@ -1,33 +1,34 @@
 package jsl2449.TheNewGateReader;
 
 import android.app.Activity;
-import android.content.Intent;
-import android.content.pm.ActivityInfo;
-import android.os.Bundle;
-import android.widget.BaseAdapter;
 import android.content.Context;
+import android.content.Intent;
+import android.database.sqlite.SQLiteDatabase;
+import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.BaseAdapter;
 import android.widget.TextView;
-import android.widget.Toast;
 
-import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Created by Joe on 11/9/2016.
+ * Created by Joe on 12/1/2016.
  */
 
-public class ChapterItemAdapter extends BaseAdapter {
-    private LayoutInflater inflater;
-    private List<MangaChapter> list;
-    private Context context;
+public class BookmarkItemAdapter extends BaseAdapter {
 
-    public ChapterItemAdapter(Context context, List<MangaChapter> list) {
+    private LayoutInflater inflater;
+    private List<Bookmark> list;
+    private Context context;
+    DbHelper dbH;
+
+    public BookmarkItemAdapter(Context context, List<Bookmark> list) {
         this.context = context;
         inflater = LayoutInflater.from(context);
         this.list = list;
+        dbH = new DbHelper(context);
     }
 
     @Override
@@ -57,35 +58,49 @@ public class ChapterItemAdapter extends BaseAdapter {
         }
     }
 
+
     @Override
     public View getView(int i, View view, ViewGroup viewGroup) {
-        MangaChapter data = (MangaChapter) getItem(i);
+        Bookmark data = (Bookmark) getItem(i);
         if (data == null) {
             throw new IllegalStateException("this should be called when list is not null blaralshdgl");
         }
 
         if (view == null) {
-            view = inflater.inflate(R.layout.chapter_item, viewGroup, false);
+            view = inflater.inflate(R.layout.bookmark_item, viewGroup, false);
         }
-        bindView(data, view, viewGroup);
+        final int position = i;
+        bindView(data, view, viewGroup, position);
         return view;
     }
 
-    public void bindView(final MangaChapter data, View view, ViewGroup parent) {
-        TextView chapterTextBox = (TextView) view.findViewById(R.id.chapter_number);
-        chapterTextBox.setText(data.title);
+    public void bindView(final Bookmark data, View view, ViewGroup parent, final int position) {
+        TextView chapterTextBox = (TextView) view.findViewById(R.id.tvChapterNum);
+        chapterTextBox.setText("Chapter " + data.currentChapter);
+        TextView pagesTB = (TextView) view.findViewById(R.id.tvPagesStuff);
+        pagesTB.setText("" + (data.currentPage + 1) + " / " + data.totalPages);
+
         view.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
                 Intent viewPageIntent = new Intent(context, PageViewerActivity.class);
                 Bundle myExtras = new Bundle();
-                Bookmark bm = new Bookmark();
-                bm.pageURL = data.chapterURL;
-                myExtras.putSerializable("resume", bm);
+                myExtras.putSerializable("resume", data);
                 viewPageIntent.putExtras(myExtras);
                 final int result = 1;
-                System.out.println("chapter to page intent");
                 ((Activity) context).startActivityForResult(viewPageIntent, result);
+            }
+        });
+
+        view.setOnLongClickListener(new View.OnLongClickListener() {
+            @Override
+            public boolean onLongClick(View view) {
+                list.remove(position);
+                SQLiteDatabase db = dbH.getWritableDatabase();
+                db.delete(DbHelper.TABLE_NAME, "id = " + data.id, null);
+                db.close();
+                notifyDataSetChanged();
+                return true;
             }
         });
     }

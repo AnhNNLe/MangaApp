@@ -10,12 +10,14 @@ import java.io.Serializable;
 import java.net.URL;
 
 public class Bookmark implements Serializable {
-    public int pageNumber;
-    public int chapterNumber;
+    public int id;
+    public int currentPage;
     public int totalPages;
-    public String mangaTitle;
-    public URL imageURL;
-    public URL pageURL;
-    public URL chapterURL;
+    public int currentChapter;
+    public String pageURL;
+
+    public String toString() {
+        return "id = " + id + " currentPage = " + currentPage + " totalPages = " + totalPages + " currentChapter = " + currentChapter + " pageURL = " + pageURL;
+    }
 }
 

@@ -1,6 +1,11 @@
 package jsl2449.TheNewGateReader;
 
+import android.content.ContentValues;
 import android.content.Intent;
+import android.content.SharedPreferences;
+import android.database.DatabaseUtils;
+import android.database.sqlite.SQLiteDatabase;
+import android.graphics.Bitmap;
 import android.media.Image;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
@@ -15,23 +20,37 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.PriorityQueue;
+import java.util.Queue;
+import java.util.Stack;
 
-public class PageViewerActivity extends AppCompatActivity implements URLFetch.Callback {
+public class PageViewerActivity extends AppCompatActivity implements ParseChapter.Callback {
 
+    public class CacheString {
+        String pageURL;
+        String imageURL;
 
+        public CacheString(String pageURL, String imageURL) {
+            this.pageURL = pageURL;
+            this.imageURL = imageURL;
+        }
+    }
+
+    private List<String> pageList;
+    private List<MangaChapter> chapterList;
+    private Bookmark resume;
     private ImageView pageIV;
-    private URL prevChapter;
-    private URL nextChapter;
-    private URL currentChapter;
-    private URL currentPage;
-    private URL prevPage;
-    private URL nextPage;
-    private URL imageURL;
-    private List<URL> pageList;
-    private List<String> chapterList;
-    private int curPageIndex;
-    private int curChapterIndex;
-    private boolean update;
+    private int currentChapter = -1;
+    private boolean moveToEnd = false;
+    private boolean caching = true;
+    private int maxCache = 5;
+    private int currentCached = 0;
+    private SharedPreferences sharedPref;
+    private Queue<CacheString> cacheQueue = new PriorityQueue<>();
+
+    DbHelper dbH;
+    SQLiteDatabase db;
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -41,57 +60,153 @@ public class PageViewerActivity extends AppCompatActivity implements URLFetch.Ca
         getSupportActionBar().setDisplayHomeAsUpEnabled(true);
 
         pageIV = (ImageView) findViewById(R.id.pageIV);
-
         pageIV.setOnTouchListener(new OnSwipeTouchListener(this));
 
-        pageList = null;
-        curPageIndex = -1;
-        curChapterIndex = -1;
-        update = true;
+        // get caching amount
+        sharedPref = getSharedPreferences("TheNewGateReader", 0);
+        maxCache = sharedPref.getInt("cacheAmount", 5);
 
+        dbH = new DbHelper(getApplicationContext());
+        db = dbH.getWritableDatabase();
 
         Intent activityThatCalled = getIntent();
         Bundle callingBundle = activityThatCalled.getExtras();
         if (callingBundle != null) {
+//            System.out.println("calling bundle != null");
+            // update current page view
+            resume = (Bookmark) callingBundle.get("resume");
+//            new ParsePage(resume, this, true);
+            // first get chapter list
+            new ParseChapter(this);
+        }
+    }
 
-            chapterList = callingBundle.getStringArrayList("chapterURLs");
-            String pageURL = callingBundle.getString("pageURL");
-            String strCurrentChapter = callingBundle.getString("currentChapter");
-            try {
-                currentPage = new URL(pageURL);
-                currentChapter = new URL(strCurrentChapter);
-                updateChapters();
-                fetch(currentPage);
-            } catch (MalformedURLException e) {
+    public void cache() {
+        if (caching) {
+//            System.out.println("cached " + currentCached);
+            if (currentCached < maxCache && resume.currentPage + currentCached < resume.totalPages) {
+                Bookmark x = new Bookmark();
+                currentCached++;
+                x.pageURL = pageList.get(resume.currentPage + currentCached);
+                new ParsePage(x, this);
             }
-//            Toast.makeText(this, "page is " + pageURL, Toast.LENGTH_SHORT).show();
         }
-
     }
 
-    public void bookmark(){
-        Bookmark b = new Bookmark();
-        b.pageNumber = curPageIndex;
-        b.totalPages = pageList.size();
-        b.pageURL = currentPage;
-        b.chapterURL = currentChapter;
-        b.chapterNumber = curChapterIndex;
+    public void cache(String pageURL, String imageURL) {
+        cacheQueue.add(new CacheString(pageURL, imageURL));
     }
 
-    public void fetch(URL url) {
-        if (BitmapCache.getInstance().getBitmap(url.toString()) == null) {
-            new URLFetch(this, url);
+    public void changePagePrev() {
+//        System.out.println("changePagePrev " + currentChapter);
+        if (resume.currentPage == 0) {
+            if (currentChapter == chapterList.size() - 1) { // at first chapter, because the chapter list is backwards
+                Toast.makeText(this, "Reached the start of manga", Toast.LENGTH_SHORT).show();
+            } else {
+                moveToEnd = true;
+                currentChapter++;
+                resume.pageURL = chapterList.get(currentChapter).chapterURL;
+                new ParsePage(resume, this, true);
+            }
         } else {
-            fetchComplete(url.toString());
+            resume.currentPage--;
+            resume.pageURL = pageList.get(resume.currentPage);
+            new ParsePage(resume, this, false);
+            updatePageNumber(resume.currentPage, resume.totalPages);
         }
     }
 
-    @Override
-    public boolean onCreateOptionsMenu(Menu menu) {
-        // Inflate the menu; this adds items to the action bar if it is present.
-        getMenuInflater().inflate(R.menu.menu_chapter_page, menu);
-        return true;
+    public void changePageNext() {
+//        System.out.println("changePageNext " + currentChapter);
+        if (resume.currentPage == resume.totalPages - 1) {
+            System.out.println("next chapter " + currentChapter);
+            if (currentChapter == 0) {
+                Toast.makeText(this, "Reached the end of manga", Toast.LENGTH_SHORT).show();
+            } else {
+//                System.out.println("go to nexct chapter");
+                currentChapter--;
+                resume.pageURL = chapterList.get(currentChapter).chapterURL;
+                new ParsePage(resume, this, true);
+            }
+        } else {
+            resume.currentPage++;
+            resume.pageURL = pageList.get(resume.currentPage);
+            new ParsePage(resume, this, false);
+            updatePageNumber(resume.currentPage, resume.totalPages);
+            if (currentCached > 0) {
+                currentCached--;
+//                cacheQueue.remove();
+            }
+        }
     }
+
+    public void updateView(String imageKey) {
+//        System.out.println("updateView");
+        Bitmap b = BitmapCache.getInstance().getBitmap(imageKey);
+        if (b != null) {
+            pageIV.setImageBitmap(BitmapCache.getInstance().getBitmap(imageKey));
+            cache();
+        } else {
+            new ParsePage(resume, this, true);
+        }
+    }
+
+    public void updateChapterList(List<MangaChapter> list) {
+        System.out.println("updateChapterList");
+        this.chapterList = list;
+        // after chapter list updated, get the current page to display
+        System.out.println("resume " + resume);
+        new ParsePage(resume, this, true);
+    }
+
+    // chapter list is actually backwards
+    // chapter 1 is = (pageList.size() - 1)
+    // the lastest chapter is at index 0
+    public void updateCurrentChapter() {
+        String firstPage = this.pageList.get(0);
+        for (int i = 0; i < this.chapterList.size(); i++) {
+            if (firstPage.equals(this.chapterList.get(i).chapterURL)) {
+                currentChapter = i;
+                resume.currentChapter = this.chapterList.size() - i;
+                break;
+            }
+        }
+
+    }
+
+    public void updatePageList(List<String> list) {
+        this.pageList = list;
+        updateCurrentChapter();
+        if (moveToEnd) {
+            moveToEnd = false;
+            resume.pageURL = pageList.get(pageList.size() - 1);
+            resume.currentPage = pageList.size() - 1;
+            resume.totalPages = pageList.size();
+            new ParsePage(resume, this, true);
+        }
+    }
+
+    public void updatePageNumber(int pageNum, int totalPages) {
+        resume.currentPage = pageNum;
+        resume.totalPages = totalPages;
+        getSupportActionBar().setTitle("The New Gate (" + (pageNum + 1) + "/" + totalPages + ")");
+    }
+
+    public void bookmark() {
+
+        ContentValues cv = new ContentValues();
+        cv.put(DbHelper.CURRENT_CHAPTER, resume.currentChapter);
+        cv.put(DbHelper.CURRENT_PAGE, resume.currentPage);
+        cv.put(DbHelper.TOTAL_PAGES, resume.totalPages);
+        cv.put(DbHelper.PAGE_URL, DatabaseUtils.sqlEscapeString(resume.pageURL));
+        db = dbH.getWritableDatabase();
+        db.insert(DbHelper.TABLE_NAME, null, cv);
+        db.close();
+
+        Toast.makeText(getApplicationContext(), "Page bookmarked", Toast.LENGTH_SHORT).show();
+
+    }
+
 
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
@@ -102,10 +217,10 @@ public class PageViewerActivity extends AppCompatActivity implements URLFetch.Ca
 
         //noinspection SimplifiableIfStatement
         if (id == R.id.settings) {
-            Toast.makeText(getApplicationContext(), "settings hit", Toast.LENGTH_SHORT).show();
+//            Toast.makeText(getApplicationContext(), "settings hit", Toast.LENGTH_SHORT).show();
             return true;
-        } else if (id == android.R.id.home){
-            Toast.makeText(this, "page home thing pressed", Toast.LENGTH_SHORT).show();
+        } else if (id == android.R.id.home) {
+//            Toast.makeText(this, "page home thing pressed", Toast.LENGTH_SHORT).show();
             onBackPressed();
             return true;
         }
@@ -116,204 +231,12 @@ public class PageViewerActivity extends AppCompatActivity implements URLFetch.Ca
     @Override
     public void onBackPressed() {
         Intent goBack = new Intent();
-        goBack.putExtra("currentPage", currentPage.toString());
-        goBack.putExtra("currentChapter", currentChapter.toString());
-        goBack.putExtra("chapterList", (ArrayList) chapterList);
+        Bundle bundle = new Bundle();
+        bundle.putSerializable("resume", resume);
+        goBack.putExtras(bundle);
 //        System.out.println("back button pressed " + currentPage.toString());
         setResult(RESULT_OK, goBack);
         finish();
     }
 
-    public void changePagePrev() {
-//        System.out.println("need to change to previous page");
-        if (curPageIndex == 0) {
-//            System.out.println("need to change to previous chapter");
-            if (curChapterIndex == 0) {
-                Toast.makeText(this, "Reached the beginning of the Manga", Toast.LENGTH_SHORT).show();
-            } else {
-                nextChapter = currentChapter;
-                currentChapter = prevChapter;
-                curChapterIndex--;
-                curPageIndex = -1;
-                update = false;
-                pageList = null;
-                fetch(currentChapter);
-            }
-        } else {
-            currentPage = prevPage;
-            curPageIndex--;
-            updatePages();
-            fetch(currentPage);
-        }
-    }
-
-    public void changePageNext() {
-//        System.out.println("need to change to next page");
-        if (curPageIndex == pageList.size() - 1) {
-//            System.out.println("next chapter");
-            // handle change chapter and everything
-            if (curChapterIndex == chapterList.size() - 1) {
-                Toast.makeText(this, "Reached the end of the Manga", Toast.LENGTH_SHORT).show();
-            } else {
-                // get next chapter
-                prevChapter = currentChapter;
-                currentChapter = nextChapter;
-                currentPage = currentChapter;
-                curChapterIndex++;
-                pageList = null;
-                curPageIndex = 0;
-                updateChapters();
-                fetch(currentPage);
-            }
-        } else {
-            currentPage = nextPage;
-            curPageIndex++;
-            updatePages();
-            fetch(currentPage);
-        }
-    }
-
-    @Override
-    public void fetchStart() {
-        // should play loading animation
-        System.out.println("page viewer loading animation");
-    }
-
-    @Override
-    public void fetchComplete(String result) {
-        if (result.contains("<!DOCTYPE")) {
-            parsePageHtml(result);
-        } else {
-            pageIV.setImageBitmap(BitmapCache.getInstance().getBitmap(result));
-        }
-    }
-
-    public void parsePageHtml(String htmlPage) {
-//        System.out.println("parsePageHTML");
-//        System.out.println(htmlPage);
-        String imageSection;
-        if (pageList == null) {
-            parsePageList(htmlPage);
-        }
-        updatePages();
-        imageSection = htmlPage.substring(htmlPage.indexOf("read_img"));
-        imageSection = imageSection.substring(imageSection.indexOf("http://h.mhcdn.net"));
-        int indexLastQuote = imageSection.indexOf("\"");
-//        System.out.println("image section " + imageSection);
-        try {
-            String strImageURL = imageSection.substring(0, indexLastQuote);
-//            System.out.println("image url " + strImageURL);
-            imageURL = new URL(strImageURL);
-            if (update) {
-//                System.out.println("update");
-                fetch(imageURL);
-            } else {
-                update = true;
-//                System.out.println("no update");
-                curPageIndex = pageList.size() - 1;
-//                System.out.println("right after " + curPageIndex);
-                fetch(pageList.get(pageList.size() - 1));
-            }
-        } catch (MalformedURLException e) {
-        }
-    }
-
-    public void parsePageList(String htmlPage) {
-        System.out.println("parsePageList");
-        String pageListSection;
-        pageListSection = htmlPage.substring(htmlPage.indexOf("<section class=\"readpage_top\">"));
-        pageListSection = pageListSection.substring(0, pageListSection.indexOf("</section>"));
-        pageListSection = pageListSection.substring(pageListSection.indexOf("<option"));
-//        System.out.println(pageListSection);
-        pageList = new ArrayList<URL>();
-        do {
-            int firstIndex = pageListSection.indexOf("http://");
-            int secondIndex = pageListSection.indexOf("\"", firstIndex + 1);
-            String newURL = pageListSection.substring(firstIndex, secondIndex);
-//            System.out.println("newURL " + newURL);
-            try {
-                pageList.add(new URL(newURL));
-            } catch (MalformedURLException e) {
-            }
-            int nextOption = pageListSection.indexOf("<option", 1);
-            if (nextOption == -1) {
-                break;
-            }
-            pageListSection = pageListSection.substring(nextOption);
-        } while (true);
-//        System.out.println(pageListSection);
-    }
-
-    public void updateChapters() {
-        System.out.println("updateChapters");
-        if (curChapterIndex == -1) {
-            System.out.println("-1");
-            for (int k = 0; k < chapterList.size(); k++) {
-                String curChap = chapterList.get(k);
-                if (currentChapter.toString().equals(curChap)) {
-                    if (k != 0) {
-                        try {
-                            prevChapter = new URL(chapterList.get(k - 1));
-                        } catch (MalformedURLException e) {
-                        }
-                    }
-                    curChapterIndex = k;
-                    if (k != chapterList.size() - 1) {
-                        try {
-                            nextChapter = new URL(chapterList.get(k + 1));
-                        } catch (MalformedURLException e) {
-                        }
-                    }
-                    break;
-                }
-            }
-        } else {
-            System.out.println("else");
-            if (curChapterIndex != 0) {
-                try {
-                    prevChapter = new URL(chapterList.get(curChapterIndex - 1));
-                } catch (MalformedURLException e) {
-                }
-            }
-//            try {
-//                currentChapter = new URL(chapterList.get(curChapterIndex));
-//            } catch (MalformedURLException e) {
-//            }
-            if (curChapterIndex != chapterList.size() - 1) {
-                try {
-                    nextChapter = new URL(chapterList.get(curChapterIndex + 1));
-                } catch (MalformedURLException e) {
-                }
-            }
-        }
-        System.out.println("current chapter index " + curChapterIndex);
-    }
-
-    public void updatePages() {
-        if (curPageIndex == -1) {
-            for (int i = 0; i < pageList.size(); i++) {
-                String curPage = pageList.get(i).toString();
-                if (currentPage.toString().equals(curPage)) {
-                    if (i != 0) {
-                        prevPage = pageList.get(i - 1);
-                    }
-                    curPageIndex = i;
-                    if (i != pageList.size() - 1) {
-                        nextPage = pageList.get(i + 1);
-                    }
-                    break;
-                }
-            }
-        } else {
-            if (curPageIndex != 0) {
-                prevPage = pageList.get(curPageIndex - 1);
-            }
-            currentPage = pageList.get(curPageIndex);
-            if (curPageIndex != pageList.size() - 1) {
-                nextPage = pageList.get(curPageIndex + 1);
-            }
-        }
-
-        getSupportActionBar().setTitle("The New Gate (" + (curPageIndex + 1) + "/" + pageList.size() + ")");
-    }
 }
